@@ -7,6 +7,7 @@ and generate an 8-bit output and single-bit output.
 <p align="center">
 <img  src="https://user-images.githubusercontent.com/58098260/221980594-4ee5aa9c-672e-4e25-9a55-3c14172cf866.png">
 </p>
+
 # Specifications:
 
 * in_a, in_b, and alu_out are all 8-bit long. The opcode is a 3-bit value for the CPU operation code, as defined in the following table.
