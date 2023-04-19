@@ -1,92 +1,35 @@
-
-module fifo (input clk, input reset_n, fifo_if.fslave_if b_if); 
-  timeunit 1ns;
-  timeprecision 100ps;
-  import fifo_pkg::*;
-  logic [BIT_DEPTH-1 : 0] wr_addr; // write fifo address
-  logic [BIT_DEPTH-1 : 0] rd_addr; // read fifo address  
-  buffer_t buffer; // fifo storage
-  parameter shiftVal = int'(2**BIT_DEPTH) ;
-
-  // Push on full with no pop error 
-  property p_push_error; 
-    @ (posedge clk) 
-       not (b_if.push && b_if.full && !b_if.pop); 
-  endproperty : p_push_error
-  ap_push_error_1 : assert property (p_push_error);
-  // mp_push_error : assume property (p_push_error);
+// This is linear queue / FIFO
+// The queue length 8
+// The data width is also 8 bits
+module jFIFO(DATAOUT, full, empty, clock, reset, wn, rn, DATAIN);
+  output reg [7:0] DATAOUT;
+  output full, empty;
+  input [7:0] DATAIN;
+  input clock, reset, wn, rn; // Need to understand what is wn and rn are for
   
-  // No pop on empty 
-  property p_pop_error; 
-   @ (posedge clk) 
-       not (b_if.pop && b_if.empty); 
-  endproperty : p_pop_error
-  ap_pop_error_1 : assert property (p_pop_error);
- // mp_pop_error : assume property (p_pop_error);
+  reg [2:0] wptr, rptr; // pointers tracking the stack
+  reg [7:0] memory [7:0]; // the stack is 8 bit wide and 8 locations in size
   
-  // RTL Detailed design
-  logic [1:0]            push_pop;
-  // Defining control for maintenance of FIFO word count
-  assign             push_pop = {b_if.push , b_if.pop};    // temporary concatenation 
-  // providing READ data to output
-  assign b_if.data_out = buffer[rd_addr];
-
-  // purpose: writes data from FIFO and controls
-  //          words within the FIFO.  It also provides the READ and
-  //          WRITE Fifo Addresses. 
- 
-  always @ (posedge clk or negedge reset_n) 
-    begin 
-    if (!reset_n)  
-        begin  // asynchronous reset (active low)
-          rd_addr         <= 0;
-          wr_addr         <= 0;
-        end
-      else
-        begin
-          case (push_pop)
-        2'b00 :
-        ;              // no push, no pop
-            
-            2'b01 : 
-              begin                   // no push, pop for READ 
-                rd_addr         <= (rd_addr+1) % shiftVal;
-              end   
-            2'b10 :                    // push for WRITE, no pop
-              begin              
-                wr_addr         <= (wr_addr + 1) % shiftVal;
-                buffer[wr_addr] <= b_if.data_in;
-              end
-            2'b11 :                    // push for WRITE, pop for READ
-              begin
-                 rd_addr <= (rd_addr+1) % shiftVal;
-                wr_addr <= (wr_addr + 1) % shiftVal;
-                buffer[wr_addr] <= b_if.data_in;
-              end
-           default  :
-           begin
-              a_illegal_fifo_cmd_1 : assert (1'b0) else
-                 $warning ("%0t %0m Meta value detected in FIFO command, push_pop %2b ",
-                           $time, push_pop);
-           end
-           
-           endcase
-        end //else
-    end //always
-
-  // Reporting of flags
-  // properties used as guide for this design since they define
-  // the requirements
+  assign full = ( (wptr == 3'b111) & (rptr == 3'b000) ? 1 : 0 );
+  assign empty = (wptr == rptr) ? 1 : 0;
   
-  always @ (posedge clk)
+  always @(posedge clock)
   begin
-    b_if.error <= (b_if.pop && b_if.empty) || (b_if.push && b_if.full && !b_if.pop);
-  end // always
-  
-  assign b_if.full = (wr_addr - rd_addr) == FULL;
-  assign b_if.empty = (wr_addr == rd_addr);
-  assign b_if.almost_full = (wr_addr - rd_addr) >= ALMOST_FULL;
-  assign b_if.almost_empty = (wr_addr - rd_addr) <= ALMOST_EMPTY;
-  
-
-endmodule : fifo
+    if (reset)
+      begin
+        memory[0] <= 0; memory[1] <= 0; memory[2] <= 0; memory[3] <= 0;
+        memory[4] <= 0; memory[5] <= 0; memory[6] <= 0; memory[7] <= 0;
+        DATAOUT <= 0; wptr <= 0; rptr <= 0;
+      end
+    else if (wn & !full)
+      begin
+        memory[wptr] <= DATAIN;
+        wptr <= wptr + 1;
+      end
+    else if (rn & !empty)
+      begin
+        DATAOUT <= memory[rptr];
+        rptr <= rptr + 1;
+      end
+  end
+endmodule
